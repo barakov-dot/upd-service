@@ -465,6 +465,7 @@ nav{
     </div>
     <div class="nav-right">
       <span class="nav-status" id="nStatus">Ожидание</span>
+      <a href="#" onclick="logout();return false" style="margin-left:14px;font-size:13px;color:#86868b;text-decoration:none">Выйти</a>
     </div>
   </nav>
 
@@ -685,23 +686,35 @@ async function go(file){
   if(!file.name.toLowerCase().endsWith('.pdf')){toast('Только PDF файлы','err');return}
   dz.style.display='none';
   showScr('scrLoad');
-  st('nStatus','Распознавание...');
+  st('nStatus','Отправка...');
+  setLoad('Отправка файла...','');
   const fd=new FormData();fd.append('file',file);
   try{
-    const ctl=new AbortController();const tmr=setTimeout(()=>ctl.abort(),120000);
     let r;
-    try{ r=await fetch('/api/recognize',{method:'POST',body:fd,signal:ctl.signal}); }
-    catch(err){ throw new Error(err.name==='AbortError'?'Сервер не ответил за 2 минуты. Откройте /api/health для диагностики':'Нет связи с сервером: '+err.message); }
-    finally{ clearTimeout(tmr); }
+    try{ r=await fetch('/api/recognize',{method:'POST',body:fd}); }
+    catch(err){ throw new Error('Нет связи с сервером: '+err.message); }
     if(!r.ok){const e=await r.json();throw new Error(e.detail||'Ошибка')}
-    const res=await r.json();
-    // Preview
+    let job=await r.json();
+    // Опрос очереди: показываем место, пока ждём своей очереди
+    const t0=Date.now();
+    while(job.status==='queued'||job.status==='running'){
+      if(job.status==='queued'){
+        const who=job.busy_users&&job.busy_users.length?' (сейчас идёт файл: '+job.busy_users.join(', ')+')':'';
+        setLoad('В очереди: вы '+job.position+'-й','Перед вами: '+job.ahead+who+'. Страницу не закрывайте.');
+        st('nStatus','В очереди №'+job.position);
+      }else{
+        setLoad('Распознавание...','Прошло '+Math.round((Date.now()-t0)/1000)+' с');
+        st('nStatus','Распознавание...');
+      }
+      await new Promise(ok=>setTimeout(ok,1500));
+      const pr=await fetch('/api/jobs/'+job.id);
+      if(!pr.ok){const e=await pr.json();throw new Error(e.detail||'Ошибка очереди')}
+      job=await pr.json();
+    }
+    if(job.status==='error') throw new Error(job.error);
+    const res=job.result;
     el('pvN').textContent=res.filename;
     await renderPdf(res.preview);
-    // Показать тип документа
-    const dtype = res.doc_type || res.data?.meta?.doc_type || 'УПД';
-    el('pvB').textContent = dtype;
-    el('pvB').className = 'pv-badge ' + (dtype === 'УПД' ? 'b-text' : 'b-scan');
     const hi=res.data.meta?.recognition_confidence==='high';
     el('pvB').textContent=hi?'Текст':'Скан';
     el('pvB').className='pv-badge '+(hi?'b-text':'b-scan');
@@ -714,6 +727,11 @@ async function go(file){
     st('nStatus','Ошибка');toast(e.message,'err');
   }
 }
+function setLoad(t,s){document.querySelector('#scrLoad .load-t').textContent=t;el('ldModel').textContent=s}
+async function logout(){await fetch('/api/logout',{method:'POST'});location.href='/login'}
+// сессия истекла → на страницу входа
+const _fetch=window.fetch;
+window.fetch=async(...a)=>{const r=await _fetch(...a);if(r.status===401&&!String(a[0]).includes('/api/login'))location.href='/login';return r};
 
 
 // ── Нативный браузерный PDF viewer ──────────────────────────────────────────

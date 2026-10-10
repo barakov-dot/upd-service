@@ -30,7 +30,18 @@ def _chain(plural: str, singular: str, default: str) -> list:
 
 # Жёсткая прошивка ключа (только на сервере, не коммитить!). Если не пусто — .env игнорируется.
 HARDCODED_KEY = ""
-GROQ_API_KEY = (HARDCODED_KEY or os.environ.get("GROQ_API_KEY", "")).strip()
+def _keys() -> list:
+    """Пул ключей: HARDCODED_KEY, GROQ_API_KEYS (через запятую) и GROQ_API_KEY, без дублей."""
+    raw = [HARDCODED_KEY] + os.environ.get("GROQ_API_KEYS", "").split(",") + [os.environ.get("GROQ_API_KEY", "")]
+    out = []
+    for k in (x.strip() for x in raw):
+        if k and k not in out:
+            out.append(k)
+    return out
+
+
+GROQ_API_KEYS = _keys()
+GROQ_API_KEY = GROQ_API_KEYS[0] if GROQ_API_KEYS else ""
 VISION_MODELS = _chain("GROQ_VISION_MODELS", "GROQ_VISION_MODEL", "qwen/qwen3.8-27b")
 TEXT_MODELS = _chain("GROQ_TEXT_MODELS", "GROQ_TEXT_MODEL", "qwen/qwen3.8-27b,openai/gpt-oss-120b")
 TIMEOUT = float(os.environ.get("GROQ_TIMEOUT", "90"))
@@ -41,11 +52,22 @@ MAX_PAGES = int(os.environ.get("MAX_PAGES", "3"))  # сколько страни
 GROQ_PROXY = os.environ.get("GROQ_PROXY", "").strip()
 
 
-def key_hint() -> dict:
-    """Безопасный отпечаток ключа для диагностики (сам ключ не раскрывается)."""
-    k = GROQ_API_KEY
-    return {
-        "env_file": str(ENV_FILE), "env_file_exists": ENV_FILE.exists(),
-        "length": len(k), "starts": k[:4], "ends": k[-4:] if len(k) > 8 else "",
-        "shell_env_differs": bool(ENV_ORIGINAL) and ENV_ORIGINAL != k,
-    }
+def mask_key(k: str) -> str:
+    return f"{k[:4]}…{k[-4:]} (длина {len(k)})" if len(k) > 8 else f"<короткий ключ, длина {len(k)}>"
+
+
+# ── Очередь ──
+MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT", "1"))      # сколько документов распознаётся одновременно
+MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "25"))
+JOB_TTL_MIN = int(os.environ.get("JOB_TTL_MIN", "30"))           # сколько хранить результат в памяти
+
+# ── Авторизация ──
+# AUTH_USERS=алекс:пароль1,иван:пароль2 ; если пусто — вход не требуется (только для разработки!)
+AUTH_USERS = {}
+for _pair in os.environ.get("AUTH_USERS", "").split(","):
+    if ":" in _pair:
+        _u, _p = _pair.split(":", 1)
+        if _u.strip() and _p:
+            AUTH_USERS[_u.strip()] = _p
+AUTH_SECRET = os.environ.get("AUTH_SECRET", "") or os.urandom(32).hex()  # без AUTH_SECRET сессии сбрасываются при рестарте
+SESSION_HOURS = int(os.environ.get("SESSION_HOURS", "12"))

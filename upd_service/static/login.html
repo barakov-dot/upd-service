@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Вход — УПД Сервис</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f5f5f7;
+font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;color:#1d1d1f}
+form{background:#fff;padding:40px;border-radius:20px;box-shadow:0 10px 40px rgba(0,0,0,.06);width:100%;max-width:340px;margin:16px}
+h1{font-size:24px;font-weight:600;margin:0 0 24px;text-align:center}
+input{width:100%;box-sizing:border-box;padding:13px;margin-bottom:12px;border:1px solid #d2d2d7;border-radius:10px;font-size:16px;background:#fbfbfd}
+button{width:100%;padding:14px;border:0;border-radius:980px;background:#0071e3;color:#fff;font-size:16px;font-weight:600;cursor:pointer}
+#err{color:#d70015;font-size:14px;text-align:center;min-height:20px;margin-top:10px}
+</style></head><body>
+<form id="f"><h1>УПД Сервис</h1>
+<input id="u" placeholder="Логин" autocomplete="username" autofocus required>
+<input id="p" type="password" placeholder="Пароль" autocomplete="current-password" required>
+<button>Войти</button><div id="err"></div></form>
+<script>
+document.getElementById('f').onsubmit=async e=>{
+  e.preventDefault();const err=document.getElementById('err');err.textContent='';
+  const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:u.value,password:p.value})});
+  if(r.ok)location.href='/';else err.textContent=(await r.json()).detail||'Ошибка входа';
+};
+</script></body></html>

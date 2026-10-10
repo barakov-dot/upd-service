@@ -1,7 +1,8 @@
-"""Groq: вызов с retry на лимиты и fallback по цепочке моделей."""
+"""Groq: пул ключей (при лимите берётся следующий), fallback по цепочке моделей, понятные ошибки."""
 import json
 import logging
 import re
+import threading
 import time
 
 import groq
@@ -17,63 +18,81 @@ class LLMError(Exception):
     """Ошибка с понятным пользователю текстом."""
 
 
-_client = None
+_clients: dict = {}
+_cooldown: dict = {}   # (ключ, модель) -> unix-время, до которого ключ на лимите
+_dead: set = set()     # ключи, которые Groq отверг (401)
+_lock = threading.Lock()
 
 
-def client() -> Groq:
-    global _client
-    if _client is None:
-        if not config.GROQ_API_KEY:
-            raise LLMError("GROQ_API_KEY не задан. Впишите ключ в .env и перезапустите сервис.")
-        try:
-            config.GROQ_API_KEY.encode("ascii")
-        except UnicodeEncodeError:
-            raise LLMError("GROQ_API_KEY содержит не-ASCII символы (похоже на заглушку). Впишите настоящий ключ gsk_…")
-        http = httpx.Client(proxy=config.GROQ_PROXY, timeout=config.TIMEOUT) if config.GROQ_PROXY else None
-        _client = Groq(api_key=config.GROQ_API_KEY, timeout=config.TIMEOUT, max_retries=0, http_client=http)
-    return _client
+def _client(key: str) -> Groq:
+    with _lock:
+        if key not in _clients:
+            http = httpx.Client(proxy=config.GROQ_PROXY, timeout=config.TIMEOUT) if config.GROQ_PROXY else None
+            _clients[key] = Groq(api_key=key, timeout=config.TIMEOUT, max_retries=0, http_client=http)
+        return _clients[key]
 
 
 def _explain(model: str, e: Exception) -> str:
     if isinstance(e, groq.AuthenticationError):
-        return "Groq отклонил ключ (401). Проверьте GROQ_API_KEY."
+        return "Groq отклонил ключ (401)."
     if isinstance(e, groq.PermissionDeniedError):
-        return (f"403 Forbidden от Groq ({model}). Причины: (1) Groq блокирует IP/страну сервера — "
-                "задайте GROQ_PROXY в .env; (2) модель отключена в console.groq.com → Settings → Limits "
-                "(Model permissions) — включите её или смените модель.")
+        return (f"403 Forbidden ({model}): Groq блокирует IP/страну сервера (нужен GROQ_PROXY) "
+                "или модель выключена в console.groq.com → Settings → Limits.")
     if isinstance(e, groq.RateLimitError):
-        return f"Лимит Groq исчерпан для {model} (429). Подождите минуту или смените модель."
+        return f"лимит {model} исчерпан (429)."
     if isinstance(e, groq.NotFoundError):
-        return f"Модель {model} не найдена или снята с поддержки Groq."
+        return f"модель {model} не найдена или снята с поддержки."
     if isinstance(e, (groq.APITimeoutError, groq.APIConnectionError)):
-        return f"Нет связи с Groq ({type(e).__name__}). Проверьте сеть/прокси сервера."
+        return f"нет связи с Groq ({type(e).__name__})."
     return f"{model}: {type(e).__name__}: {e}"
 
 
-def chat(messages: list, models: list, max_tokens: int = 8192) -> tuple:
-    """Возвращает (текст, модель). Пробует модели по очереди; 429 — одна пауза и повтор."""
-    problems = []
+def _retry_after(e) -> float:
+    try:
+        return float(e.response.headers.get("retry-after", 60))
+    except Exception:
+        return 60.0
+
+
+def chat(messages: list, models: list, max_tokens: int = 8192, only_key: str = None) -> tuple:
+    """(текст, модель). Для каждой модели перебирает ключи; на 429 ключ «остывает» и берётся следующий."""
+    keys = [only_key] if only_key else list(config.GROQ_API_KEYS)
+    if not keys:
+        raise LLMError("Не задан ни один ключ Groq (GROQ_API_KEY / GROQ_API_KEYS в .env).")
+    problems, soonest = [], None
     for model in models:
-        for attempt in (1, 2):
+        for key in keys:
+            if key in _dead and not only_key:
+                continue
+            until = _cooldown.get((key, model), 0)
+            if until > time.time() and not only_key:
+                soonest = min(soonest or until, until)
+                continue
             try:
-                r = client().chat.completions.create(
+                key.encode("ascii")
+            except UnicodeEncodeError:
+                problems.append(f"ключ {config.mask_key(key)} содержит не-ASCII символы (заглушка?).")
+                continue
+            try:
+                r = _client(key).chat.completions.create(
                     model=model, messages=messages, temperature=0.0, max_tokens=max_tokens)
                 return r.choices[0].message.content or "", model
-            except LLMError:
-                raise
             except groq.AuthenticationError as e:
-                raise LLMError(_explain(model, e))
+                _dead.add(key)
+                problems.append(f"ключ {config.mask_key(key)}: {_explain(model, e)}")
             except groq.RateLimitError as e:
-                log.warning("429 на %s (попытка %d)", model, attempt)
-                if attempt == 1:
-                    time.sleep(min(float(getattr(e.response, "headers", {}).get("retry-after", 5)), 20))
-                    continue
-                problems.append(_explain(model, e))
-            except (groq.PermissionDeniedError, groq.NotFoundError, groq.BadRequestError, groq.APIStatusError,
-                    groq.APITimeoutError, groq.APIConnectionError) as e:
-                log.exception("Ошибка Groq на %s", model)
-                problems.append(_explain(model, e))
-            break
+                wait = min(max(_retry_after(e), 5), 3600)
+                _cooldown[(key, model)] = time.time() + wait
+                soonest = min(soonest or time.time() + wait, time.time() + wait)
+                log.warning("429: ключ %s на %s, пауза %.0f с — пробую следующий", config.mask_key(key), model, wait)
+                problems.append(f"ключ {config.mask_key(key)}: {_explain(model, e)}")
+            except groq.APIError as e:
+                log.exception("Ошибка Groq: %s", model)
+                problems.append(f"ключ {config.mask_key(key)}: {_explain(model, e)}")
+    if soonest and not only_key:
+        mins = max(1, int((soonest - time.time()) / 60) + 1)
+        raise LLMError(f"Лимиты всех ключей исчерпаны. Освободится примерно через {mins} мин. "
+                       "Добавьте ещё ключи в GROQ_API_KEYS (с других аккаунтов Groq).")
     raise LLMError("Распознавание не удалось. " + " | ".join(problems))
 
 
