@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>УПД · Сервис</title>
+<style>
+/* Apple Design System — SF Pro, white space, precision */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#F5F5F7;
+  --surface:#FFFFFF;
+  --surface2:#F5F5F7;
+  --surface3:#E8E8ED;
+  --border:rgba(0,0,0,.08);
+  --border2:rgba(0,0,0,.12);
+  --text:#1D1D1F;
+  --text2:#6E6E73;
+  --text3:#AEAEB2;
+  --blue:#0071E3;
+  --blue-h:#0077ED;
+  --blue-bg:rgba(0,113,227,.06);
+  --red:#FF3B30;
+  --green:#34C759;
+  --green-bg:rgba(52,199,89,.08);
+  --orange:#FF9F0A;
+  --r:12px;--r-lg:18px;--r-xl:24px;
+  --font:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Helvetica Neue',Arial,sans-serif;
+  --mono:'SF Mono','Fira Code','Fira Mono','Roboto Mono',monospace;
+  --sh:0 2px 8px rgba(0,0,0,.06),0 0 0 .5px rgba(0,0,0,.04);
+  --sh-md:0 4px 24px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.04);
+  --sh-lg:0 12px 48px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.06);
+  --t:.18s ease;
+}
+
+html,body{height:100%;font-family:var(--font);font-size:14px;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+
+/* ── Layout ── */
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+/* ── Navbar ── */
+nav{
+  height:52px;flex-shrink:0;
+  background:rgba(255,255,255,.85);
+  backdrop-filter:saturate(180%) blur(20px);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:.5px solid var(--border);
+  display:flex;align-items:center;padding:0 20px;gap:12px;
+  position:relative;z-index:50;
+}
+.nav-logo{
+  font-size:17px;font-weight:600;color:var(--text);
+  letter-spacing:-.02em;display:flex;align-items:center;gap:6px;
+}
+.nav-logo-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--blue);
+  box-shadow:0 0 0 3px rgba(0,113,227,.15);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(0,113,227,.15)}50%{box-shadow:0 0 0 5px rgba(0,113,227,.07)}}
+.nav-sep{width:.5px;height:18px;background:var(--border2);margin:0 4px}
+.nav-sub{font-size:12px;color:var(--text2);letter-spacing:.01em}
+.nav-chip{
+  display:none;align-items:center;gap:7px;
+  padding:5px 12px;
+  background:var(--surface3);
+  border-radius:99px;
+  font-size:12px;font-family:var(--mono);color:var(--text2);
+  max-width:260px;
+}
+.nav-chip.show{display:flex}
+.nav-chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.nav-chip-x{
+  color:var(--text3);font-size:14px;line-height:1;
+  cursor:pointer;flex-shrink:0;transition:color var(--t);
+}
+.nav-chip-x:hover{color:var(--red)}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.nav-status{font-size:12px;color:var(--text2)}
+
+/* ── Workspace ── */
+.ws{flex:1;display:grid;grid-template-columns:42% 1fr;overflow:hidden;min-height:0}
+
+/* ── Left panel ── */
+.pl{
+  background:var(--surface2);
+  border-right:.5px solid var(--border);
+  display:flex;flex-direction:column;
+  overflow:hidden;position:relative;
+}
+
+/* Drop zone */
+.dz{
+  flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:40px 32px;cursor:pointer;
+  transition:background var(--t);
+  position:relative;
+}
+.dz input{position:absolute;inset:0;opacity:0;cursor:pointer;z-index:1}
+.dz-card{
+  background:var(--surface);
+  border-radius:var(--r-xl);
+  box-shadow:var(--sh-md);
+  padding:48px 40px;
+  display:flex;flex-direction:column;
+  align-items:center;text-align:center;
+  gap:0;width:100%;max-width:340px;
+  transition:transform var(--t),box-shadow var(--t);
+  border:.5px solid var(--border);
+}
+.dz:hover .dz-card{transform:translateY(-2px);box-shadow:var(--sh-lg)}
+.dz.over .dz-card{transform:scale(.98);background:var(--blue-bg)}
+
+.dz-icon-wrap{
+  width:72px;height:72px;border-radius:20px;
+  background:linear-gradient(145deg,#F0F4FF,#E8F0FE);
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:24px;
+  box-shadow:0 2px 12px rgba(0,113,227,.15);
+}
+.dz-icon-wrap svg{width:32px;height:32px}
+
+.dz-title{font-size:19px;font-weight:600;color:var(--text);letter-spacing:-.02em;margin-bottom:10px}
+.dz-desc{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:24px}
+.dz-desc b{color:var(--blue);font-weight:500}
+
+.dz-btn{
+  padding:10px 24px;
+  background:var(--blue);
+  color:#fff;border:none;border-radius:99px;
+  font-family:var(--font);font-size:14px;font-weight:500;
+  cursor:pointer;transition:all var(--t);
+  letter-spacing:-.01em;margin-bottom:20px;
+}
+.dz:hover .dz-btn{background:var(--blue-h)}
+.dz-formats{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.dz-fmt{
+  padding:4px 10px;
+  background:var(--surface3);
+  border-radius:99px;
+  font-size:11px;color:var(--text2);
+  font-family:var(--mono);
+}
+
+/* Preview */
+.pv{display:none;flex-direction:column;height:100%;overflow:hidden}
+.pv.show{display:flex}
+.pv-bar{
+  padding:11px 16px;display:flex;align-items:center;gap:10px;
+  background:var(--surface);border-bottom:.5px solid var(--border);flex-shrink:0;
+}
+.pv-name{font-family:var(--mono);font-size:11px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pv-badge{padding:3px 9px;border-radius:99px;font-size:11px;font-weight:500}
+.b-scan{background:rgba(255,159,10,.1);color:#B36200}
+.b-text{background:var(--green-bg);color:#1A7A33}
+.pv-scroll{flex:1;overflow:hidden;background:#404040;display:flex;flex-direction:column;padding:0}
+.pdf-page-wrap{position:relative;flex-shrink:0}
+.pdf-page-wrap canvas{display:block;border-radius:4px;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.pdf-page-num{position:absolute;bottom:6px;right:8px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 7px;border-radius:99px;font-family:var(--mono);pointer-events:none}
+.pv-zoom{display:flex;align-items:center;gap:6px}
+.pv-zoom-btn{width:28px;height:28px;border-radius:7px;border:.5px solid var(--border2);background:var(--surface);color:var(--text);font-size:15px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all var(--t);line-height:1}
+.pv-zoom-btn:hover{background:var(--surface3)}
+.pv-zoom-val{font-size:12px;font-family:var(--mono);color:var(--text2);min-width:36px;text-align:center}
+.btn-ghost{
+  padding:6px 13px;border-radius:8px;
+  font-family:var(--font);font-size:12px;font-weight:500;
+  cursor:pointer;border:.5px solid var(--border2);
+  background:var(--surface);color:var(--text2);
+  transition:all var(--t);
+}
+.btn-ghost:hover{background:var(--surface3);color:var(--text)}
+
+/* ── Right panel ── */
+.pr{
+  background:var(--surface);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+
+/* Screens — only one visible at a time */
+.screen{flex:1;display:none;flex-direction:column;overflow:hidden;min-height:0}
+.screen.show{display:flex}
+
+/* Empty screen */
+.empty-screen{
+  align-items:center;justify-content:center;gap:12px;
+  padding:40px;
+}
+.empty-ico{
+  width:56px;height:56px;border-radius:16px;
+  background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:4px;
+}
+.empty-t{font-size:15px;font-weight:500;color:var(--text);letter-spacing:-.01em}
+.empty-s{font-size:13px;color:var(--text2)}
+
+/* Loading screen */
+.load-screen{align-items:center;justify-content:center;gap:16px}
+.spinner{
+  width:40px;height:40px;
+  border:2.5px solid var(--surface3);
+  border-top-color:var(--blue);
+  border-radius:50%;
+  animation:spin .75s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-t{font-size:15px;font-weight:500;color:var(--text);letter-spacing:-.01em}
+.load-s{font-size:12px;color:var(--text2);font-family:var(--mono)}
+
+/* Data screen */
+.data-screen{flex-direction:column}
+
+/* Segmented control */
+.seg-wrap{padding:12px 20px;border-bottom:.5px solid var(--border);flex-shrink:0}
+.seg{
+  display:inline-flex;background:var(--surface3);
+  border-radius:9px;padding:2px;gap:2px;
+}
+.seg-btn{
+  padding:6px 18px;border-radius:7px;
+  font-family:var(--font);font-size:13px;font-weight:500;
+  cursor:pointer;border:none;background:transparent;
+  color:var(--text2);transition:all .15s;
+}
+.seg-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--sh)}
+
+/* Fields scroll */
+.fscroll{flex:1;overflow-y:auto;padding:24px 24px 100px}
+
+/* Section */
+.sec{margin-bottom:28px}
+.sec-label{
+  font-size:11px;font-weight:600;color:var(--text2);
+  letter-spacing:.06em;text-transform:uppercase;
+  margin-bottom:10px;
+}
+
+/* Card container for fields */
+.card{
+  background:var(--surface);
+  border:.5px solid var(--border);
+  border-radius:var(--r);
+  overflow:hidden;
+  box-shadow:var(--sh);
+}
+
+/* Field row inside card */
+.frow{
+  display:grid;padding:0;
+  border-bottom:.5px solid var(--border);
+}
+.frow:last-child{border-bottom:none}
+.frow-2{grid-template-columns:1fr 1fr}
+.frow-3{grid-template-columns:1fr 1fr 1fr}
+
+.f{display:flex;flex-direction:column;border-right:.5px solid var(--border)}
+.f:last-child{border-right:none}
+.f label{
+  font-size:10px;font-weight:600;color:var(--text2);
+  letter-spacing:.05em;text-transform:uppercase;
+  padding:9px 13px 3px;
+}
+.f input,.f textarea{
+  font-family:var(--font);font-size:13px;color:var(--text);
+  background:transparent;border:none;
+  padding:3px 13px 9px;outline:none;width:100%;
+  transition:background var(--t);
+}
+.f textarea{resize:vertical;min-height:56px;line-height:1.5;padding-bottom:9px}
+.f:focus-within{background:var(--blue-bg)}
+.f input::placeholder,.f textarea::placeholder{color:var(--text3)}
+
+/* Items table */
+.itbl-card{
+  border:.5px solid var(--border);
+  border-radius:var(--r);
+  overflow:hidden;box-shadow:var(--sh);
+}
+.itbl{width:100%;border-collapse:collapse;font-size:12px}
+.itbl th{
+  padding:9px 10px;text-align:left;
+  font-size:10px;font-weight:600;
+  letter-spacing:.05em;text-transform:uppercase;
+  color:var(--text2);background:var(--surface2);
+  border-bottom:.5px solid var(--border);white-space:nowrap;
+}
+.itbl td{padding:2px 3px;border-bottom:.5px solid var(--border);vertical-align:top}
+.itbl tr:last-child td{border-bottom:none}
+.itbl-num{padding:8px 10px;color:var(--text3);font-family:var(--mono);font-size:11px;text-align:right;white-space:nowrap}
+.itbl td input{
+  font-family:var(--mono);font-size:12px;color:var(--text);
+  background:transparent;border:1.5px solid transparent;
+  border-radius:8px;padding:5px 7px;width:100%;outline:none;
+  transition:all var(--t);
+}
+.itbl td input:hover{background:var(--surface2)}
+.itbl td input:focus{background:var(--blue-bg);border-color:var(--blue)}
+.itbl td input.iw{min-width:180px}
+.itbl td input.in{width:68px}
+.itbl td input.im{width:90px}
+
+/* Totals */
+.tot{
+  display:grid;grid-template-columns:1fr 1fr 1fr;
+  gap:.5px;background:var(--border);
+  border:.5px solid var(--border);border-radius:var(--r);
+  overflow:hidden;margin-top:12px;box-shadow:var(--sh);
+}
+.tot-c{background:var(--surface);padding:14px 16px}
+.tot-c.hi{background:var(--text)}
+.tot-l{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text2);margin-bottom:4px}
+.tot-c.hi .tot-l{color:rgba(255,255,255,.5)}
+.tot-v{font-size:18px;font-weight:600;color:var(--text);letter-spacing:-.02em}
+.tot-c.hi .tot-v{color:#fff}
+
+/* XML tab */
+.xml-wrap{flex:1;overflow:hidden;display:flex;flex-direction:column;padding:0}
+
+/* Toolbar — светлый */
+.xml-toolbar{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 14px;
+  background:var(--surface2);
+  border-bottom:.5px solid var(--border);
+  flex-shrink:0;
+}
+.xml-toolbar-title{
+  font-size:11px;color:var(--text2);
+  font-family:var(--mono);flex:1;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.xml-toolbar-btn{
+  padding:4px 11px;border-radius:6px;
+  font-family:var(--mono);font-size:11px;
+  cursor:pointer;
+  border:.5px solid var(--border2);
+  background:var(--surface);color:var(--text2);
+  transition:all .15s;white-space:nowrap;flex-shrink:0;
+}
+.xml-toolbar-btn:hover{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+/* Основной контейнер редактора */
+.xml-editor-wrap{
+  flex:1;display:flex;overflow:hidden;background:var(--surface);
+}
+
+/* Нумерация строк */
+.xml-lines{
+  flex-shrink:0;width:42px;padding:14px 0;
+  background:var(--surface2);
+  border-right:.5px solid var(--border);
+  font-family:var(--mono);font-size:11px;line-height:1.75;
+  color:var(--text3);text-align:right;
+  overflow:hidden;user-select:none;pointer-events:none;
+}
+.xml-lines span{display:block;padding-right:10px}
+
+/* contenteditable — один элемент, один скролл, никакого плавания */
+#xmlEditor{
+  flex:1;overflow:auto;
+  padding:14px 16px;
+  font-family:var(--mono);font-size:11.5px;line-height:1.75;
+  color:var(--text);background:transparent;
+  border:none;outline:none;
+  white-space:pre;tab-size:2;
+  word-break:normal;overflow-wrap:normal;
+  caret-color:var(--blue);
+  min-width:0;
+}
+
+/* Цвета токенов — светлая тема */
+.xt  { color:#0550ae }  /* тег              — синий тёмный  */
+.xa  { color:#116329 }  /* атрибут          — зелёный тёмный */
+.xv  { color:#953800 }  /* значение "..."   — коричнево-оранжевый */
+.xc  { color:#6e7781 }  /* комментарий      — серый */
+.xd  { color:#6639ba }  /* декларация <?    — фиолетовый */
+.xp  { color:#8250df }  /* пунктуация <>/=" — фиолетовый светлый */
+
+/* Скроллбар — светлый */
+#xmlEditor::-webkit-scrollbar{width:6px;height:6px}
+#xmlEditor::-webkit-scrollbar-track{background:var(--surface2)}
+#xmlEditor::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+#xmlEditor::-webkit-scrollbar-thumb:hover{background:var(--text3)}
+
+/* Action bar */
+.abar{
+  position:sticky;bottom:0;left:0;right:0;
+  padding:14px 24px;
+  background:rgba(255,255,255,.9);
+  backdrop-filter:saturate(180%) blur(20px);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-top:.5px solid var(--border);
+  display:none;align-items:center;gap:10px;
+  flex-shrink:0;z-index:10;
+}
+.abar.show{display:flex}
+
+.btn-primary{
+  display:flex;align-items:center;gap:7px;
+  padding:10px 22px;background:var(--blue);color:#fff;
+  border:none;border-radius:99px;
+  font-family:var(--font);font-size:14px;font-weight:500;
+  cursor:pointer;transition:all var(--t);letter-spacing:-.01em;
+}
+.btn-primary:hover{background:var(--blue-h);transform:scale(1.01)}
+.btn-primary:active{transform:scale(.99)}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;transform:none}
+
+.btn-sec{
+  display:flex;align-items:center;gap:7px;
+  padding:10px 18px;background:var(--surface3);color:var(--text);
+  border:none;border-radius:99px;
+  font-family:var(--font);font-size:14px;font-weight:500;
+  cursor:pointer;transition:all var(--t);
+}
+.btn-sec:hover{background:var(--surface2)}
+
+.conf{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)}
+.cdot{width:7px;height:7px;border-radius:50%}
+.c-hi{background:var(--green)}.c-md{background:var(--orange)}.c-lo{background:var(--red)}
+
+/* Toast */
+.tw{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+.toast{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 20px;
+  background:rgba(29,29,31,.9);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  color:#fff;border-radius:99px;
+  font-size:13px;font-weight:500;
+  box-shadow:0 8px 32px rgba(0,0,0,.24);
+  transform:translateY(20px) scale(.92);opacity:0;
+  transition:all .3s cubic-bezier(.34,1.56,.64,1);
+  pointer-events:all;white-space:nowrap;
+}
+.toast.show{transform:translateY(0) scale(1);opacity:1}
+.tico{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0}
+.tok .tico{background:var(--green)}.terr .tico{background:var(--red)}
+
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text3)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Navbar -->
+  <nav>
+    <div class="nav-logo">
+      <div class="nav-logo-dot"></div>
+      УПД Сервис
+    </div>
+    <div class="nav-sep"></div>
+    <span class="nav-sub">Распознавание документов</span>
+    <div class="nav-chip" id="nChip">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <span class="nav-chip-name" id="nChipName"></span>
+      <span class="nav-chip-x" onclick="resetAll()">✕</span>
+    </div>
+    <div class="nav-right">
+      <span class="nav-status" id="nStatus">Ожидание</span>
+    </div>
+  </nav>
+
+  <div class="ws">
+
+    <!-- Left: drop / preview -->
+    <div class="pl">
+      <div class="dz" id="dz">
+        <input type="file" id="fi" accept=".pdf">
+        <div class="dz-card">
+          <div class="dz-icon-wrap">
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M8 4C8 2.89543 8.89543 2 10 2H20L28 10V28C28 29.1046 27.1046 30 26 30H10C8.89543 30 8 29.1046 8 28V4Z" fill="#0071E3" opacity=".12"/>
+              <path d="M20 2V10H28" stroke="#0071E3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8 4C8 2.89543 8.89543 2 10 2H20L28 10V28C28 29.1046 27.1046 30 26 30H10C8.89543 30 8 29.1046 8 28V4Z" stroke="#0071E3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M16 21V15M16 15L13 18M16 15L19 18" stroke="#0071E3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="dz-title">Загрузите документ</div>
+          <div class="dz-desc">Перетащите PDF сюда или<br><b>выберите файл</b></div>
+          <button class="dz-btn">Выбрать PDF</button>
+          <div class="dz-formats">
+            <span class="dz-fmt">УПД</span>
+            <span class="dz-fmt">Счёт-фактура</span>
+            <span class="dz-fmt">Акт</span>
+          </div>
+        </div>
+      </div>
+      <div class="pv" id="pv">
+        <div class="pv-bar">
+          <span class="pv-name" id="pvN">—</span>
+          <span class="pv-badge" id="pvB"></span>
+          <div class="pv-zoom">
+            <button class="pv-zoom-btn" onclick="zoomOut()">−</button>
+            <span class="pv-zoom-val" id="zoomVal">100%</span>
+            <button class="pv-zoom-btn" onclick="zoomIn()">+</button>
+          </div>
+          <button class="btn-ghost" onclick="resetAll()">Другой файл</button>
+        </div>
+        <div class="pv-scroll" id="pvScroll"></div>
+      </div>
+    </div>
+
+    <!-- Right: single flex column, screens switch inside -->
+    <div class="pr">
+
+      <!-- Empty screen -->
+      <div class="screen empty-screen show" id="scrEmpty">
+        <div class="empty-ico">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </div>
+        <div class="empty-t">Нет загруженного документа</div>
+        <div class="empty-s">Загрузите УПД слева для распознавания</div>
+      </div>
+
+      <!-- Loading screen -->
+      <div class="screen load-screen" id="scrLoad">
+        <div class="spinner"></div>
+        <div class="load-t">Распознавание...</div>
+        <div class="load-s" id="ldModel">qwen2.5vl:7b</div>
+      </div>
+
+      <!-- Data screen -->
+      <div class="screen data-screen" id="scrData">
+        <div class="seg-wrap">
+          <div class="seg">
+            <button class="seg-btn on" id="segF" onclick="switchTab('f')">Данные</button>
+            <button class="seg-btn" id="segX" onclick="switchTab('x')">XML · 1С</button>
+          </div>
+        </div>
+
+        <!-- Fields pane -->
+        <div class="fscroll" id="paneF">
+
+          <div class="sec">
+            <div class="sec-label">Счёт-фактура</div>
+            <div class="card">
+              <div class="frow frow-3">
+                <div class="f"><label>Номер</label><input type="text" id="dN"></div>
+                <div class="f"><label>Дата</label><input type="text" id="dD" placeholder="ДД.ММ.ГГГГ"></div>
+                <div class="f"><label>Функция</label><input type="text" id="dF"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-label">Продавец</div>
+            <div class="card">
+              <div class="frow">
+                <div class="f"><label>Наименование</label><input type="text" id="sN"></div>
+              </div>
+              <div class="frow frow-2">
+                <div class="f"><label>ИНН</label><input type="text" id="sI"></div>
+                <div class="f"><label>КПП</label><input type="text" id="sK"></div>
+              </div>
+              <div class="frow">
+                <div class="f"><label>Адрес</label><textarea id="sA"></textarea></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-label">Покупатель</div>
+            <div class="card">
+              <div class="frow">
+                <div class="f"><label>Наименование</label><input type="text" id="bN"></div>
+              </div>
+              <div class="frow frow-2">
+                <div class="f"><label>ИНН</label><input type="text" id="bI"></div>
+                <div class="f"><label>КПП</label><input type="text" id="bK"></div>
+              </div>
+              <div class="frow">
+                <div class="f"><label>Адрес</label><textarea id="bA"></textarea></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-label" id="iLabel">Товары и услуги</div>
+            <div class="itbl-card">
+              <table class="itbl">
+                <thead><tr>
+                  <th style="width:28px">#</th>
+                  <th>Наименование</th><th>Кол-во</th><th>Цена</th>
+                  <th>Без НДС</th><th>Ставка</th><th>НДС</th><th>С НДС</th>
+                </tr></thead>
+                <tbody id="iBody"></tbody>
+              </table>
+            </div>
+            <div class="tot" id="totEl" style="display:none">
+              <div class="tot-c"><div class="tot-l">Без НДС</div><div class="tot-v" id="tWo">—</div></div>
+              <div class="tot-c"><div class="tot-l">Сумма НДС</div><div class="tot-v" id="tVat">—</div></div>
+              <div class="tot-c hi"><div class="tot-l">Итого</div><div class="tot-v" id="tWi">—</div></div>
+            </div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-label">Основание передачи</div>
+            <div class="card">
+              <div class="frow">
+                <div class="f"><label>Наименование документа</label><input type="text" id="bsN"></div>
+              </div>
+              <div class="frow frow-3">
+                <div class="f"><label>Номер</label><input type="text" id="bsNum"></div>
+                <div class="f"><label>Дата документа</label><input type="text" id="bsD" placeholder="ДД.ММ.ГГГГ"></div>
+                <div class="f"><label>Дата передачи</label><input type="text" id="trD" placeholder="ДД.ММ.ГГГГ"></div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /fscroll -->
+
+        <!-- XML pane -->
+        <div class="xml-wrap" id="paneX" style="display:none">
+          <div class="xml-toolbar">
+            <span class="xml-toolbar-title" id="xmlFilename">XML · 1С</span>
+            <button class="xml-toolbar-btn" onclick="formatXml()">⌥ Форматировать</button>
+            <button class="xml-toolbar-btn" onclick="copyXml()">⎘ Копировать</button>
+          </div>
+          <div class="xml-editor-wrap">
+            <div class="xml-lines" id="xmlLines"></div>
+            <div id="xmlEditor"
+              contenteditable="true"
+              spellcheck="false"
+              autocorrect="off"
+              autocapitalize="off"
+              oninput="onXmlEdit()"
+              data-placeholder="← Нажмите «Предпросмотр» для генерации XML"
+            ></div>
+          </div>
+        </div>
+
+        <!-- Action bar -->
+        <div class="abar show" id="abar">
+          <button class="btn-sec" onclick="previewXml()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Предпросмотр
+          </button>
+          <button class="btn-primary" id="btnDL" onclick="downloadXml()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Скачать XML для 1С
+          </button>
+          <div class="conf" id="confEl"></div>
+        </div>
+
+      </div><!-- /data-screen -->
+    </div><!-- /pr -->
+  </div><!-- /ws -->
+</div>
+
+<div class="tw" id="tw"></div>
+
+<script>
+let D=null;
+const fi=document.getElementById('fi'),dz=document.getElementById('dz');
+fi.addEventListener('change',e=>e.target.files[0]&&go(e.target.files[0]));
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');e.dataTransfer.files[0]&&go(e.dataTransfer.files[0])});
+
+async function go(file){
+  if(!file.name.toLowerCase().endsWith('.pdf')){toast('Только PDF файлы','err');return}
+  dz.style.display='none';
+  showScr('scrLoad');
+  st('nStatus','Распознавание...');
+  const fd=new FormData();fd.append('file',file);
+  try{
+    const r=await fetch('/api/recognize',{method:'POST',body:fd});
+    if(!r.ok){const e=await r.json();throw new Error(e.detail||'Ошибка')}
+    const res=await r.json();
+    // Preview
+    el('pvN').textContent=res.filename;
+    await renderPdf(res.preview);
+    // Показать тип документа
+    const dtype = res.doc_type || res.data?.meta?.doc_type || 'УПД';
+    el('pvB').textContent = dtype;
+    el('pvB').className = 'pv-badge ' + (dtype === 'УПД' ? 'b-text' : 'b-scan');
+    const hi=res.data.meta?.recognition_confidence==='high';
+    el('pvB').textContent=hi?'Текст':'Скан';
+    el('pvB').className='pv-badge '+(hi?'b-text':'b-scan');
+    show('pv');D=res.data;fill(res.data);
+    showScr('scrData');
+    el('nChipName').textContent=res.filename;show('nChip');
+    st('nStatus','Готово');switchTab('f');toast('Документ распознан','ok');
+  }catch(e){
+    showScr('scrEmpty');dz.style.display='flex';
+    st('nStatus','Ошибка');toast(e.message,'err');
+  }
+}
+
+
+// ── Нативный браузерный PDF viewer ──────────────────────────────────────────
+// Браузер рендерит PDF сам — идеальная кириллица, все шрифты, все страницы.
+// Зум через CSS transform на iframe.
+
+let _pdfBlobUrl = null;
+let _pdfZoomPct = 100;  // проценты: 75, 100, 125, 150, 200
+const ZOOM_STEPS = [50, 75, 100, 125, 150, 175, 200];
+
+async function renderPdf(b64){
+  const container = el('pvScroll');
+  container.innerHTML = '';
+
+  // Освобождаем предыдущий Blob
+  if(_pdfBlobUrl){ URL.revokeObjectURL(_pdfBlobUrl); _pdfBlobUrl = null; }
+
+  try {
+    const bytes = atob(b64);
+    const arr   = new Uint8Array(bytes.length);
+    for(let i=0;i<bytes.length;i++) arr[i]=bytes.charCodeAt(i);
+    const blob  = new Blob([arr], {type:'application/pdf'});
+    _pdfBlobUrl = URL.createObjectURL(blob);
+
+    // iframe — браузер рендерит с родным viewer
+    const iframe = document.createElement('iframe');
+    iframe.id    = 'pdfIframe';
+    iframe.src   = _pdfBlobUrl + '#toolbar=0&navpanes=0&scrollbar=1';
+    iframe.style.cssText = [
+      'width:100%',
+      'height:100%',
+      'border:none',
+      'display:block',
+      'background:#fff',
+      'border-radius:4px',
+      'box-shadow:0 4px 20px rgba(0,0,0,.3)',
+      'transform-origin:top center',
+    ].join(';');
+
+    // Контейнер занимает всё место
+    container.style.cssText = 'flex:1;overflow:hidden;background:#404040;padding:0;display:flex;flex-direction:column';
+    container.appendChild(iframe);
+
+    _applyZoom();
+    el('zoomVal').textContent = _pdfZoomPct + '%';
+  } catch(e) {
+    container.innerHTML = `<div style="color:#ff6b6b;padding:24px;font-size:13px">Ошибка: ${e.message}</div>`;
+  }
+}
+
+function _applyZoom(){
+  const iframe = el('pdfIframe');
+  if(!iframe) return;
+  const scale = _pdfZoomPct / 100;
+  if(scale === 1){
+    iframe.style.transform = '';
+    iframe.style.width  = '100%';
+    iframe.style.height = '100%';
+  } else {
+    // Масштабируем через CSS zoom (поддерживается в Chrome/Safari/Firefox 126+)
+    iframe.style.zoom = scale;
+    iframe.style.width  = (100 / scale) + '%';
+    iframe.style.height = (100 / scale) + '%';
+  }
+  el('zoomVal').textContent = _pdfZoomPct + '%';
+}
+
+function zoomIn(){
+  const idx = ZOOM_STEPS.indexOf(_pdfZoomPct);
+  if(idx < ZOOM_STEPS.length - 1){
+    _pdfZoomPct = ZOOM_STEPS[idx + 1];
+    _applyZoom();
+  }
+}
+function zoomOut(){
+  const idx = ZOOM_STEPS.indexOf(_pdfZoomPct);
+  if(idx > 0){
+    _pdfZoomPct = ZOOM_STEPS[idx - 1];
+    _applyZoom();
+  }
+}
+
+// Ctrl+колёсико для зума
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.querySelector('.pl')?.addEventListener('wheel', e=>{
+    if(e.ctrlKey || e.metaKey){
+      e.preventDefault();
+      e.deltaY < 0 ? zoomIn() : zoomOut();
+    }
+  }, {passive:false});
+});
+
+// ── Валидация ИНН / КПП ──────────────────────────────────────────────────────
+function cleanInn(v){
+  // ИНН юрлица — ровно 10 цифр
+  if(!v) return '';
+  const d=(v+'').replace(/\D/g,'');
+  return d.length>10?d.slice(0,10):d;
+}
+function cleanKpp(v){
+  // КПП — ровно 9 символов (цифры + A-Z на 5-6 позиции)
+  if(!v) return '';
+  const d=(v+'').replace(/[^0-9A-Za-z]/g,'').toUpperCase();
+  if(d.length>9) return d.slice(d.length-9); // берём последние 9
+  return d;
+}
+function setValidated(id, raw, cleanFn, expectedLen){
+  const cleaned = cleanFn(raw);
+  v(id, cleaned);
+  const inp = el(id);
+  if(!inp) return cleaned;
+  const ok = cleaned.length === expectedLen;
+  inp.style.background = ok || !cleaned ? '' : 'rgba(255,59,48,.08)';
+  inp.style.borderColor = ok || !cleaned ? '' : 'var(--red)';
+  inp.title = ok || !cleaned ? '' : `Исправлено: было ${raw}, стало ${cleaned}`;
+  return cleaned;
+}
+
+
+// ── Математическая валидация строк таблицы ───────────────────────────────────
+const C_OK  = 'rgba(52,199,89,.10)';   // нежно зелёный
+const C_ERR = 'rgba(255,59,48,.10)';   // нежно красный
+const EPS   = 0.02;                     // допуск округления ±2 копейки
+
+function n(v){ return parseFloat((v+'').replace(',','.'))||0; }
+
+function vatRate(rateStr){
+  // "20%" -> 0.20,  "5%" -> 0.05,  "без НДС" -> 0
+  if(!rateStr) return 0;
+  const m = (rateStr+'').match(/([\d.]+)/);
+  return m ? parseFloat(m[1])/100 : 0;
+}
+
+function cellColor(inp, ok){
+  inp.style.background = ok ? C_OK : C_ERR;
+  inp.style.borderColor = ok ? 'rgba(52,199,89,.3)' : 'rgba(255,59,48,.3)';
+}
+
+function validateRow(row, it){
+  const inputs = row.querySelectorAll('input');
+  // inputs: [0]=name [1]=quantity [2]=price [3]=amount_without_vat
+  //         [4]=vat_rate [5]=vat_amount [6]=amount_with_vat
+  const qty   = n(it.quantity);
+  const price = n(it.price);
+  const wo    = n(it.amount_without_vat);
+  const rate  = vatRate(it.vat_rate);
+  const vat   = n(it.vat_amount);
+  const wi    = n(it.amount_with_vat);
+
+  // Колонка 5: кол-во × цена = стоимость без НДС
+  const woCalc = Math.round(qty * price * 100) / 100;
+  const woOk   = Math.abs(woCalc - wo) <= EPS || qty === 0 || price === 0;
+
+  // Колонка 8: стоимость без НДС × ставка = НДС
+  const vatCalc = Math.round(wo * rate * 100) / 100;
+  const vatOk   = Math.abs(vatCalc - vat) <= EPS || rate === 0;
+
+  // Колонка 9: стоимость без НДС + НДС = итого с НДС
+  const wiCalc = Math.round((wo + vat) * 100) / 100;
+  const wiOk   = Math.abs(wiCalc - wi) <= EPS;
+
+  // Подсвечиваем — qty и price вместе отвечают за col5
+  cellColor(inputs[1], woOk);  // quantity
+  cellColor(inputs[2], woOk);  // price
+  cellColor(inputs[3], woOk);  // amount_without_vat
+  // vat_rate не подсвечиваем (строковое поле)
+  inputs[4].style.background = '';
+  inputs[4].style.borderColor = '';
+  cellColor(inputs[5], vatOk); // vat_amount
+  cellColor(inputs[6], wiOk);  // amount_with_vat
+}
+
+function validateTotals(items, tot){
+  // Считаем суммы по строкам
+  const sumWo  = items.reduce((s,it)=>s+n(it.amount_without_vat),0);
+  const sumVat = items.reduce((s,it)=>s+n(it.vat_amount),0);
+  const sumWi  = items.reduce((s,it)=>s+n(it.amount_with_vat),0);
+
+  const tWo  = n(tot.amount_without_vat);
+  const tVat = n(tot.vat_amount);
+  const tWi  = n(tot.amount_with_vat);
+
+  // Также проверяем внутреннюю логику итогов: tWo + tVat = tWi
+  const totOk = Math.abs((tWo + tVat) - tWi) <= EPS;
+
+  // Проверяем совпадение с суммами строк
+  const woOk  = Math.abs(sumWo  - tWo)  <= EPS;
+  const vatOk = Math.abs(sumVat - tVat) <= EPS;
+  const wiOk  = Math.abs(sumWi  - tWi)  <= EPS && totOk;
+
+  // Подсвечиваем блок итогов
+  const cells = document.querySelectorAll('.tot-c');
+  if(cells.length >= 3){
+    cells[0].style.background = woOk  ? 'rgba(52,199,89,.10)' : 'rgba(255,59,48,.10)';
+    cells[1].style.background = vatOk ? 'rgba(52,199,89,.10)' : 'rgba(255,59,48,.10)';
+    // Итого — всегда зелёный акцент (тёмный), но делаем ярче если всё ок
+    const lastCell = cells[cells.length-1];
+    if(wiOk){
+      lastCell.style.background = '#1A7A33'; // насыщенный зелёный
+    } else {
+      lastCell.style.background = '#A32D2D'; // красный если не сходится
+    }
+  }
+}
+
+function fill(d){
+  const doc=d.document||{},s=d.seller||{},b=d.buyer||{};
+  const items=d.items||[],tot=d.totals||{},tr=d.transfer||{},m=d.meta||{};
+  v('dN',doc.number);v('dD',doc.date);v('dF',doc.function);
+  v('sN',s.name);
+  // ИНН и КПП — валидируем и авто-корректируем
+  const sInn=setValidated('sI',s.inn,cleanInn,10);
+  const sKpp=setValidated('sK',s.kpp,cleanKpp,9);
+  if(D.seller){D.seller.inn=sInn;D.seller.kpp=sKpp;}
+  v('sA',s.address);
+  v('bN',b.name);
+  const bInn=setValidated('bI',b.inn,cleanInn,10);
+  const bKpp=setValidated('bK',b.kpp,cleanKpp,9);
+  if(D.buyer){D.buyer.inn=bInn;D.buyer.kpp=bKpp;}
+  v('bA',b.address);
+  // Основание: для УПД это transfer, для СЧФ это basis_doc
+  const bd = d.basis_doc || {};
+  v('bsN',   tr.basis_doc_name   || bd.name);
+  v('bsNum', tr.basis_doc_number || bd.number);
+  v('bsD',   tr.basis_doc_date   || bd.date);
+  v('trD',   tr.date);
+  // Показать/скрыть поле "Дата передачи" (только для УПД)
+  const docType = (d.meta||{}).doc_type || 'УПД';
+  const trDateWrap = el('trD')?.closest('.f');
+  if(trDateWrap) trDateWrap.style.display = docType === 'СЧФ' ? 'none' : '';
+  const tb=el('iBody');tb.innerHTML='';
+  items.forEach((it,i)=>{
+    const row=document.createElement('tr');
+    row.innerHTML=`<td class="itbl-num">${i+1}</td>
+      <td><input class="iw" type="text" value="${esc(it.name)}" data-i="${i}" data-f="name"></td>
+      <td><input class="in" type="text" value="${esc(it.quantity)}" data-i="${i}" data-f="quantity"></td>
+      <td><input class="in" type="text" value="${esc(it.price)}" data-i="${i}" data-f="price"></td>
+      <td><input class="im" type="text" value="${esc(it.amount_without_vat)}" data-i="${i}" data-f="amount_without_vat"></td>
+      <td><input class="in" type="text" value="${esc(it.vat_rate)}" data-i="${i}" data-f="vat_rate"></td>
+      <td><input class="im" type="text" value="${esc(it.vat_amount)}" data-i="${i}" data-f="vat_amount"></td>
+      <td><input class="im" type="text" value="${esc(it.amount_with_vat)}" data-i="${i}" data-f="amount_with_vat"></td>`;
+    tb.appendChild(row);
+    validateRow(row, it);
+  });
+  tb.querySelectorAll('input').forEach(x=>{
+    x.addEventListener('change',()=>{
+      D.items[+x.dataset.i][x.dataset.f]=x.value;
+      validateRow(x.closest('tr'), D.items[+x.dataset.i]);
+      validateTotals(D.items, D.totals||{});
+    });
+  });
+  el('iLabel').textContent=`Товары и услуги · ${items.length} ${items.length===1?'строка':'строк'}`;
+  if(tot.amount_with_vat){
+    st('tWo',fmt(tot.amount_without_vat));st('tVat',fmt(tot.vat_amount));st('tWi',fmt(tot.amount_with_vat));
+    el('totEl').style.display='grid';
+    validateTotals(items, tot);
+  }
+  const c=m.recognition_confidence||'high';
+  const cl={high:'c-hi',medium:'c-md',low:'c-lo'};
+  const lb={high:'Высокая уверенность',medium:'Средняя',low:'Низкая'};
+  el('confEl').innerHTML=`<div class="cdot ${cl[c]||'c-hi'}"></div><span>${lb[c]||c}</span>`;
+  [['dN','document','number'],['dD','document','date'],
+   ['sN','seller','name'],['sA','seller','address'],
+   ['bN','buyer','name'],['bA','buyer','address'],
+   ['bsN','transfer','basis_doc_name'],['bsNum','transfer','basis_doc_number'],
+   ['bsD','transfer','basis_doc_date'],['trD','transfer','date'],
+   ['bsN','basis_doc','name'],['bsNum','basis_doc','number'],['bsD','basis_doc','date']
+  ].forEach(([id,sec,f])=>{
+    const x=el(id);if(x)x.addEventListener('change',()=>{if(!D[sec])D[sec]={};D[sec][f]=x.value});
+  });
+  // ИНН/КПП — live-валидация с авто-коррекцией
+  [['sI','seller','inn',cleanInn,10],['sK','seller','kpp',cleanKpp,9],
+   ['bI','buyer','inn',cleanInn,10], ['bK','buyer','kpp',cleanKpp,9]
+  ].forEach(([id,sec,f,fn,len])=>{
+    const x=el(id);
+    if(!x)return;
+    x.addEventListener('change',()=>{
+      const cleaned=setValidated(id,x.value,fn,len);
+      if(!D[sec])D[sec]={};
+      D[sec][f]=cleaned;
+    });
+    x.addEventListener('input',()=>{
+      // Снимаем красный пока печатают
+      x.style.background='';x.style.borderColor='';
+    });
+  });
+}
+
+function switchTab(t){
+  el('segF').classList.toggle('on',t==='f');
+  el('segX').classList.toggle('on',t==='x');
+  el('paneF').style.display=t==='f'?'block':'none';
+  el('paneX').style.display=t==='x'?'block':'none';
+}
+
+// ── XML Editor ───────────────────────────────────────────────────────────────
+let _editedXml = null;   // null = используем D для генерации; строка = ручные правки
+
+function esc2(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function highlightXml(esc){
+  return esc
+    .replace(/(&lt;\?xml[^?]*?\?&gt;)/g, '<span class="xd">$1</span>')
+    .replace(/(&lt;!--[\s\S]*?--&gt;)/g,  '<span class="xc">$1</span>')
+    .replace(/(&lt;\/)([^\s&>]+?)(&gt;)/g,
+      '<span class="xp">$1</span><span class="xt">$2</span><span class="xp">$3</span>')
+    .replace(/(&lt;)([^\s&>\/!?][^\s&>]*?)(\s[^&>]*?)?(\/?&gt;)/g,
+      (m,lt,tag,attrs,gt)=>{
+        const a=(attrs||'').replace(
+          /(\s+)([^\s=<>"&]+)(=)(&quot;[^"&]*&quot;)/g,
+          '$1<span class="xa">$2</span><span class="xp">$3</span><span class="xv">$4</span>'
+        );
+        return `<span class="xp">${lt}</span><span class="xt">${tag}</span>${a}<span class="xp">${gt}</span>`;
+      });
+}
+
+function _getRawXml(){
+  // contenteditable — берём innerText (сохраняет переносы строк)
+  return el('xmlEditor').innerText.replace(/\u00a0/g,' ');
+}
+
+function updateLineNumbers(text){
+  const n=(text.match(/\n/g)||[]).length+1;
+  el('xmlLines').innerHTML=Array.from({length:n},(_,i)=>`<span>${i+1}</span>`).join('');
+}
+
+function setXmlContent(xml, filename){
+  _editedXml = null;
+  const ed = el('xmlEditor');
+  ed.innerHTML = highlightXml(esc2(xml));
+  // Нумерация синхронизируется по скроллу редактора
+  ed.onscroll = ()=>{ el('xmlLines').scrollTop = ed.scrollTop; };
+  updateLineNumbers(xml);
+  if(filename) el('xmlFilename').textContent = filename;
+}
+
+function onXmlEdit(){
+  const raw = _getRawXml();
+  _editedXml = raw;
+  updateLineNumbers(raw);
+  // Не перерендериваем highlight при каждом нажатии — каретка прыгнет
+  // Highlight применяется только при setXmlContent (загрузка) и formatXml
+}
+
+function copyXml(){
+  const txt = _editedXml !== null ? _editedXml : _getRawXml();
+  if(!txt.trim()) return;
+  navigator.clipboard.writeText(txt).then(()=>toast('XML скопирован','ok'));
+}
+
+function formatXml(){
+  const txt = _editedXml !== null ? _editedXml : _getRawXml();
+  if(!txt.trim()) return;
+  try{
+    const parser = new DOMParser();
+    const doc2 = parser.parseFromString(txt,'application/xml');
+    if(doc2.querySelector('parsererror')){ toast('Ошибка XML: не удалось разобрать','err'); return; }
+    function fmtNode(n,d){
+      const ind='\t'.repeat(d);
+      if(n.nodeType===3){const t=n.textContent.trim();return t?ind+t+'\n':'';}
+      if(n.nodeType!==1) return '';
+      let s=ind+'<'+n.nodeName;
+      for(const a of n.attributes) s+=` ${a.name}="${a.value}"`;
+      const kids=[...n.childNodes].map(c=>fmtNode(c,d+1)).join('');
+      if(!kids.trim()) return s+'/>\n';
+      return s+'>\n'+kids+ind+'</'+n.nodeName+'>\n';
+    }
+    let raw='<?xml version="1.0" encoding="windows-1251"?>\n'+fmtNode(doc2.documentElement,0);
+    setXmlContent(raw, null);
+    _editedXml = raw;
+    toast('Форматирование применено','ok');
+  }catch(e){ toast('Ошибка: '+e.message,'err'); }
+}
+async function previewXml(){
+  if(!D)return;
+  switchTab('x');
+  el('xmlEditor').innerHTML='<span style="color:var(--text3);font-size:12px">Генерация XML...</span>';
+  el('xmlLines').innerHTML='';
+  el('xmlFilename').textContent='XML · 1С';
+  try{
+    const r=await fetch('/api/preview-xml',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({data:D})
+    });
+    const json=await r.json();
+    setXmlContent(json.xml, json.filename);
+    _editedXml = null;
+  }catch(e){
+    el('xmlEditor').innerHTML='<span style="color:var(--red)">Ошибка: '+e.message+'</span>';
+  }
+}
+
+async function downloadXml(){
+  if(!D)return;
+  const btn=el('btnDL');btn.disabled=true;
+  btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin .8s linear infinite"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg> Генерация...';
+  try{
+    let blob, name;
+    if(_editedXml !== null){
+      // Пользователь правил XML — скачиваем именно его версию
+      // Перекодируем в windows-1251 через TextEncoder не доступен для cp1251,
+      // поэтому отправляем на сервер как строку для перекодировки
+      const r=await fetch('/api/encode-xml',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({xml:_editedXml})
+      });
+      if(!r.ok)throw new Error('Ошибка кодирования');
+      blob=await r.blob();
+      name=el('xmlFilename').textContent||'upd.xml';
+    } else {
+      // Правок нет — генерируем из данных
+      const r=await fetch('/api/generate-xml',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({data:D})
+      });
+      if(!r.ok)throw new Error('Ошибка генерации');
+      blob=await r.blob();
+      const cd=r.headers.get('Content-Disposition')||'';
+      const m=cd.match(/filename="([^"]+)"/);
+      name=m?m[1]:'upd.xml';
+    }
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();
+    toast(name+' скачан','ok');
+  }catch(e){toast(e.message,'err')}
+  finally{
+    btn.disabled=false;
+    btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Скачать XML для 1С';
+  }
+}
+
+function resetAll(){
+  D=null;dz.style.display='flex';fi.value='';
+  hide('pv');hide('nChip');showScr('scrEmpty');
+  st('nStatus','Ожидание');el('abar').classList.remove('show');
+}
+
+// Screen manager — only one visible at a time
+function showScr(id){
+  ['scrEmpty','scrLoad','scrData'].forEach(s=>{
+    el(s).classList.toggle('show',s===id);
+  });
+  // Show action bar only for data screen
+  el('abar').classList.toggle('show',id==='scrData');
+}
+
+function toast(msg,type='ok'){
+  const tw=el('tw'),t=document.createElement('div');
+  t.className='toast '+(type==='ok'?'tok':'terr');
+  t.innerHTML=`<div class="tico">${type==='ok'?'✓':'✕'}</div><span>${msg}</span>`;
+  tw.appendChild(t);requestAnimationFrame(()=>requestAnimationFrame(()=>t.classList.add('show')));
+  setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),350)},3000);
+}
+
+function el(id){return document.getElementById(id)}
+function show(id){el(id).classList.add('show')}
+function hide(id){el(id).classList.remove('show')}
+function st(id,t){const x=el(id);if(x)x.textContent=t||''}
+function v(id,val){const x=el(id);if(x)x.value=val||''}
+function esc(s){return(s||'').toString().replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+function fmt(s){if(!s)return'—';return parseFloat(s).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})}
+</script>
+</body>
+</html>
