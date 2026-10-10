@@ -2,4 +2,6 @@ fastapi
 uvicorn
 pymupdf
 groq
+httpx
 python-multipart
+pytest

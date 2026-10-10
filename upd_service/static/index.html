@@ -155,13 +155,14 @@ nav{
 .pv-badge{padding:3px 9px;border-radius:99px;font-size:11px;font-weight:500}
 .b-scan{background:rgba(255,159,10,.1);color:#B36200}
 .b-text{background:var(--green-bg);color:#1A7A33}
-.pv-scroll{flex:1;overflow:hidden;background:#404040;display:flex;flex-direction:column;padding:0}
+.pv-scroll{flex:1;overflow:auto;background:#404040;display:flex;flex-direction:column;padding:0;position:relative}
 .pdf-page-wrap{position:relative;flex-shrink:0}
 .pdf-page-wrap canvas{display:block;border-radius:4px;box-shadow:0 4px 20px rgba(0,0,0,.4)}
 .pdf-page-num{position:absolute;bottom:6px;right:8px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 7px;border-radius:99px;font-family:var(--mono);pointer-events:none}
 .pv-zoom{display:flex;align-items:center;gap:6px}
 .pv-zoom-btn{width:28px;height:28px;border-radius:7px;border:.5px solid var(--border2);background:var(--surface);color:var(--text);font-size:15px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all var(--t);line-height:1}
 .pv-zoom-btn:hover{background:var(--surface3)}
+.pv-sep{width:.5px;height:18px;background:var(--border2);margin:0 2px;flex-shrink:0}
 .pv-zoom-val{font-size:12px;font-family:var(--mono);color:var(--text2);min-width:36px;text-align:center}
 .btn-ghost{
   padding:6px 13px;border-radius:8px;
@@ -497,6 +498,22 @@ nav{
           <span class="pv-name" id="pvN">—</span>
           <span class="pv-badge" id="pvB"></span>
           <div class="pv-zoom">
+            <button class="pv-zoom-btn" onclick="rotateCCW()" title="Повернуть против часовой">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+              </svg>
+            </button>
+            <span class="pv-zoom-val" id="rotateVal">0°</span>
+            <button class="pv-zoom-btn" onclick="rotateCW()" title="Повернуть по часовой">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                <path d="M21 3v5h-5"/>
+              </svg>
+            </button>
+          </div>
+          <div class="pv-sep"></div>
+          <div class="pv-zoom">
             <button class="pv-zoom-btn" onclick="zoomOut()">−</button>
             <span class="pv-zoom-val" id="zoomVal">100%</span>
             <button class="pv-zoom-btn" onclick="zoomIn()">+</button>
@@ -523,7 +540,7 @@ nav{
       <div class="screen load-screen" id="scrLoad">
         <div class="spinner"></div>
         <div class="load-t">Распознавание...</div>
-        <div class="load-s" id="ldModel">qwen2.5vl:7b</div>
+        <div class="load-s" id="ldModel">Groq API</div>
       </div>
 
       <!-- Data screen -->
@@ -671,7 +688,11 @@ async function go(file){
   st('nStatus','Распознавание...');
   const fd=new FormData();fd.append('file',file);
   try{
-    const r=await fetch('/api/recognize',{method:'POST',body:fd});
+    const ctl=new AbortController();const tmr=setTimeout(()=>ctl.abort(),120000);
+    let r;
+    try{ r=await fetch('/api/recognize',{method:'POST',body:fd,signal:ctl.signal}); }
+    catch(err){ throw new Error(err.name==='AbortError'?'Сервер не ответил за 2 минуты. Откройте /api/health для диагностики':'Нет связи с сервером: '+err.message); }
+    finally{ clearTimeout(tmr); }
     if(!r.ok){const e=await r.json();throw new Error(e.detail||'Ошибка')}
     const res=await r.json();
     // Preview
@@ -699,65 +720,116 @@ async function go(file){
 // Браузер рендерит PDF сам — идеальная кириллица, все шрифты, все страницы.
 // Зум через CSS transform на iframe.
 
-let _pdfBlobUrl = null;
-let _pdfZoomPct = 100;  // проценты: 75, 100, 125, 150, 200
-const ZOOM_STEPS = [50, 75, 100, 125, 150, 175, 200];
+let _pdfBlobUrl   = null;
+let _pdfZoomPct   = 100;   // проценты: 75, 100, 125, 150, 200
+let _viewRotation = 0;     // угол поворота для просмотра (0/90/180/270)
+let _isImgMode    = false; // true = скан-JPEG, false = PDF iframe
+const ZOOM_STEPS  = [50, 75, 100, 125, 150, 175, 200];
 
-async function renderPdf(b64){
+async function renderPdf(data){
+  // data = "pdf:BASE64" — нативный PDF viewer
+  //        "img:BASE64" — повёрнутый JPEG (скан с rotation)
   const container = el('pvScroll');
   container.innerHTML = '';
-
-  // Освобождаем предыдущий Blob
   if(_pdfBlobUrl){ URL.revokeObjectURL(_pdfBlobUrl); _pdfBlobUrl = null; }
 
+  const isImg = data.startsWith('img:');
+  const b64   = data.slice(4);  // убираем префикс
+
   try {
-    const bytes = atob(b64);
-    const arr   = new Uint8Array(bytes.length);
-    for(let i=0;i<bytes.length;i++) arr[i]=bytes.charCodeAt(i);
-    const blob  = new Blob([arr], {type:'application/pdf'});
-    _pdfBlobUrl = URL.createObjectURL(blob);
+    _isImgMode = isImg;
+    if(isImg){
+      // Скан повёрнут — показываем как изображение, зум через CSS
+      const img     = document.createElement('img');
+      img.id        = 'pdfIframe';
+      img.src       = 'data:image/jpeg;base64,' + b64;
+      img.style.cssText = [
+        'display:block',
+        'max-width:100%',
+        'border-radius:6px',
+        'box-shadow:0 4px 20px rgba(0,0,0,.35)',
+        'transform-origin:top center',
+        'transition:transform .2s ease',
+      ].join(';');
+      container.style.cssText = 'flex:1;overflow:auto;background:#404040;padding:16px;display:flex;justify-content:center;align-items:flex-start';
+      container.appendChild(img);
+    } else {
+      // Обычный PDF — нативный браузерный viewer
+      const bytes = atob(b64);
+      const arr   = new Uint8Array(bytes.length);
+      for(let i=0;i<bytes.length;i++) arr[i]=bytes.charCodeAt(i);
+      const blob  = new Blob([arr], {type:'application/pdf'});
+      _pdfBlobUrl = URL.createObjectURL(blob);
 
-    // iframe — браузер рендерит с родным viewer
-    const iframe = document.createElement('iframe');
-    iframe.id    = 'pdfIframe';
-    iframe.src   = _pdfBlobUrl + '#toolbar=0&navpanes=0&scrollbar=1';
-    iframe.style.cssText = [
-      'width:100%',
-      'height:100%',
-      'border:none',
-      'display:block',
-      'background:#fff',
-      'border-radius:4px',
-      'box-shadow:0 4px 20px rgba(0,0,0,.3)',
-      'transform-origin:top center',
-    ].join(';');
-
-    // Контейнер занимает всё место
-    container.style.cssText = 'flex:1;overflow:hidden;background:#404040;padding:0;display:flex;flex-direction:column';
-    container.appendChild(iframe);
-
+      const iframe = document.createElement('iframe');
+      iframe.id    = 'pdfIframe';
+      iframe.src   = _pdfBlobUrl + '#toolbar=0&navpanes=0&scrollbar=1';
+      iframe.style.cssText = [
+        'width:100%','height:100%','border:none',
+        'display:block','background:#fff',
+        'border-radius:4px','box-shadow:0 4px 20px rgba(0,0,0,.3)',
+        'transform-origin:top center',
+      ].join(';');
+      container.style.cssText = 'flex:1;overflow:hidden;background:#404040;padding:0;display:flex;flex-direction:column';
+      container.appendChild(iframe);
+    }
+    _viewRotation = 0;
     _applyZoom();
     el('zoomVal').textContent = _pdfZoomPct + '%';
+    el('rotateVal').textContent = '0°';
   } catch(e) {
     container.innerHTML = `<div style="color:#ff6b6b;padding:24px;font-size:13px">Ошибка: ${e.message}</div>`;
   }
 }
 
 function _applyZoom(){
-  const iframe = el('pdfIframe');
-  if(!iframe) return;
-  const scale = _pdfZoomPct / 100;
-  if(scale === 1){
-    iframe.style.transform = '';
-    iframe.style.width  = '100%';
-    iframe.style.height = '100%';
+  const viewer = el('pdfIframe');
+  if(!viewer) return;
+  const scale  = _pdfZoomPct / 100;
+  const rot    = _viewRotation;
+  const isImg  = viewer.tagName === 'IMG';
+
+  if(isImg){
+    // JPEG-скан: transform = rotate + scale в одном
+    viewer.style.transform       = `rotate(${rot}deg) scale(${scale})`;
+    viewer.style.transformOrigin = 'center center';
   } else {
-    // Масштабируем через CSS zoom (поддерживается в Chrome/Safari/Firefox 126+)
-    iframe.style.zoom = scale;
-    iframe.style.width  = (100 / scale) + '%';
-    iframe.style.height = (100 / scale) + '%';
+    // iframe PDF: rotate через CSS transform, zoom отдельно
+    const needSwap = rot === 90 || rot === 270;
+    // Поворот iframe — используем transform (zoom не поворачивает)
+    if(rot === 0){
+      viewer.style.transform = '';
+      viewer.style.zoom      = scale === 1 ? '' : scale;
+      viewer.style.width     = scale === 1 ? '100%' : (100/scale)+'%';
+      viewer.style.height    = scale === 1 ? '100%' : (100/scale)+'%';
+    } else {
+      // При повороте iframe меняем размеры чтобы не вылезать за границы
+      const container = el('pvScroll');
+      const cw = container.clientWidth;
+      const ch = container.clientHeight;
+      viewer.style.zoom   = '';
+      viewer.style.width  = needSwap ? ch+'px' : cw+'px';
+      viewer.style.height = needSwap ? cw+'px' : ch+'px';
+      viewer.style.transform       = `rotate(${rot}deg) scale(${scale})`;
+      viewer.style.transformOrigin = 'center center';
+      viewer.style.position        = 'absolute';
+      viewer.style.top             = needSwap ? ((ch-cw)/2)+'px' : '0';
+      viewer.style.left            = needSwap ? ((cw-ch)/2)+'px' : '0';
+    }
   }
-  el('zoomVal').textContent = _pdfZoomPct + '%';
+  el('zoomVal').textContent  = _pdfZoomPct + '%';
+}
+
+function rotateCW(){
+  _viewRotation = (_viewRotation + 90) % 360;
+  el('rotateVal').textContent = _viewRotation === 0 ? '0°' : _viewRotation+'°';
+  _applyZoom();
+}
+
+function rotateCCW(){
+  _viewRotation = (_viewRotation + 270) % 360;
+  el('rotateVal').textContent = _viewRotation === 0 ? '0°' : _viewRotation+'°';
+  _applyZoom();
 }
 
 function zoomIn(){
