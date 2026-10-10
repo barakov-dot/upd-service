@@ -25,8 +25,11 @@ import doc_registry as registry
 app = FastAPI(title="УПД Сервис")
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
-TEXT_MODEL   = "llama-3.3-70b-versatile"
+# Модели берутся из переменных окружения — при очередном снятии модели Groq
+# достаточно поменять .env, код трогать не нужно.
+# Llama 4 Scout и Llama 3.3 70B отключены Groq летом 2026 г.
+VISION_MODEL = os.environ.get("GROQ_VISION_MODEL", "qwen/qwen3.6-27b")
+TEXT_MODEL   = os.environ.get("GROQ_TEXT_MODEL",   "qwen/qwen3.6-27b")
 
 SYSTEM_PROMPT = """Ты — эксперт по распознаванию российских бухгалтерских документов.
 Твоя задача — извлечь данные из документа и вернуть их строго в формате JSON.
@@ -50,23 +53,38 @@ def extract_text(pdf_bytes):
 def is_text_pdf(pdf_bytes):
     return len(extract_text(pdf_bytes).strip()) > 100
 
-def pdf_to_image_b64(pdf_bytes, dpi=200):
+def pdf_to_image_b64(pdf_bytes, dpi=200, rotation=0):
+    """Рендерим страницу PDF в JPEG, применяя поворот если нужно."""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     page = doc[0]
-    pix = page.get_pixmap(matrix=fitz.Matrix(dpi/72, dpi/72))
+    mat = fitz.Matrix(dpi/72, dpi/72)
+    if rotation:
+        mat = fitz.Matrix(dpi/72, dpi/72).prerotate(rotation)
+    pix = page.get_pixmap(matrix=mat)
     img = pix.tobytes("jpeg")
     doc.close()
     return base64.b64encode(img).decode()
 
-def pdf_to_preview_b64(pdf_bytes):
-    # Весь PDF для PDF.js в браузере
-    return base64.b64encode(pdf_bytes).decode()
+def pdf_to_preview_b64(pdf_bytes, rotation=0):
+    """Превью для браузера.
+    Если rotation != 0 — отдаём повёрнутый JPEG (браузер не умеет крутить PDF).
+    Если rotation == 0 — отдаём сырой PDF для нативного viewer.
+    """
+    if rotation:
+        # Рендерим повёрнутое изображение и отдаём как JPEG data URI
+        return "img:" + pdf_to_image_b64(pdf_bytes, dpi=150, rotation=rotation)
+    return "pdf:" + base64.b64encode(pdf_bytes).decode()
 
 def parse_json_safe(raw):
-    raw = raw.strip()
-    if raw.startswith("```"):
-        raw = "\n".join(l for l in raw.split("\n") if not l.startswith("```"))
-    return json.loads(raw)
+    """Достаём JSON из ответа модели.
+    Qwen 3.6 может добавить блок <think>...</think> и markdown-обёртку —
+    вырезаем всё лишнее и берём от первой { до последней }."""
+    import re
+    raw = re.sub(r"<think>.*?</think>", "", raw or "", flags=re.S).strip()
+    start, end = raw.find("{"), raw.rfind("}")
+    if start < 0 or end < 0:
+        raise ValueError(f"Модель не вернула JSON: {raw[:300]}")
+    return json.loads(raw[start:end+1])
 
 # ─── Распознавание ────────────────────────────────────────────────────────────
 
@@ -89,7 +107,7 @@ def recognize(pdf_bytes: bytes) -> dict:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user",   "content": full_prompt}
             ],
-            temperature=0.0, max_tokens=4096,
+            temperature=0.0, max_tokens=8192,
         )
     else:
         img_b64 = pdf_to_image_b64(pdf_bytes)
@@ -102,13 +120,17 @@ def recognize(pdf_bytes: bytes) -> dict:
                     {"type": "text",      "text": user_prompt}
                 ]}
             ],
-            temperature=0.0, max_tokens=4096,
+            temperature=0.0, max_tokens=8192,
         )
 
     data = parse_json_safe(resp.choices[0].message.content)
 
     # Гарантируем что doc_type записан в meta
     data.setdefault("meta", {})["doc_type"] = doc_type
+
+    # Если модель определила поворот — перерендериваем изображение правильно
+    rotation = int(data.get("meta", {}).get("rotation", 0))
+    data["meta"]["rotation"] = rotation
 
     return data
 
@@ -123,9 +145,10 @@ async def api_recognize(file: UploadFile = File(...)):
         data = recognize(pdf_bytes)
     except Exception as e:
         raise HTTPException(500, f"Ошибка распознавания: {e}")
+    rotation = data.get("meta", {}).get("rotation", 0)
     return JSONResponse({
         "data": data,
-        "preview": pdf_to_preview_b64(pdf_bytes),
+        "preview": pdf_to_preview_b64(pdf_bytes, rotation=rotation),
         "filename": file.filename,
         "doc_type": data.get("meta", {}).get("doc_type", "УПД"),
     })
