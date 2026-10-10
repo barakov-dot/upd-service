@@ -1,7 +1,7 @@
 """Работа с PDF: текст, рендер страниц, превью."""
 import base64
 
-import fitz
+import pymupdf as fitz
 
 
 def extract_text(pdf_bytes: bytes) -> str:

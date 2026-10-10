@@ -85,7 +85,7 @@ async def api_encode_xml(req: EncodeRequest):
 @app.get("/api/health")
 async def api_health():
     """Проверяет КАЖДУЮ модель обеих цепочек (текст и vision) — как реально работает распознавание."""
-    info = {"groq_key_set": bool(config.GROQ_API_KEY), "doc_types": [t["type"] for t in registry.list_types()],
+    info = {"groq_key_set": bool(config.GROQ_API_KEY), "key": config.key_hint(), "doc_types": [t["type"] for t in registry.list_types()],
             "text_models": {}, "vision_models": {}}
     msgs_text = [{"role": "user", "content": "Ответь одним словом: ок"}]
     msgs_img = [{"role": "user", "content": [
